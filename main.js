@@ -69,6 +69,17 @@ const takeVars = t => (t && t.live !== false && t.scene !== undefined ? {
   tb_status: { good: 'GOOD', ng: 'NG', hold: 'HOLD' }[t.status] || '', tb_good: String(t.good), tb_ng: String(t.ng), tb_message: t.message || '',
 } : { tb_scene: '', tb_shot: '', tb_take: '', tb_slate: '', tb_state: '', tb_roll: '', tb_status: '', tb_good: '', tb_ng: '', tb_message: '' })
 
+/* Light Commander: scenes, the stack, effects (same order as lib/light-commander.ts FX) */
+const LC_FX = [['strobe', 'Strobe'], ['pulse', 'Pulse'], ['chase', 'Chase'], ['wave', 'Wave'], ['lightning', 'Lightning'], ['fire', 'Fire'], ['rainbow', 'Rainbow'], ['sweep', 'Sweep'], ['bass', 'Bass hit']]
+const lcVars = l => {
+  const on = !!(l && l.live)
+  const v = { lights_scene: on ? l.sceneName || '' : '', lights_bpm: on && l.bpm ? String(l.bpm) : '',
+    lights_stack: on && l.stackLen ? `${l.stack || 0}/${l.stackLen}${l.stackName ? ` ${l.stackName}` : ''}` : '',
+    lights_fx: on ? (l.fx || []).map(id => (LC_FX.find(f => f[0] === id) || [id, id])[1]).join(', ') : '' }
+  for (let n = 1; n <= 8; n++) v[`lights_scene${n}`] = on && l.scenes ? l.scenes[n - 1] || '' : ''
+  return v
+}
+
 /* Intercom: what the deck shows about the director's beltpack */
 const IC_CHANNELS = 8
 const icVars = i => {
@@ -91,7 +102,7 @@ class ProLogicInstance extends InstanceBase {
     this.startPolling()
   }
 
-  async destroy() { clearInterval(this.timer); for (const h of (this.icHeld || new Map()).values()) clearInterval(h.t) }
+  async destroy() { clearInterval(this.timer); for (const h of (this.icHeld || new Map()).values()) clearInterval(h.t); for (const h of (this.lcHeld || new Map()).values()) clearInterval(h) }
 
   async configUpdated(config) {
     this.config = config
@@ -109,6 +120,7 @@ class ProLogicInstance extends InstanceBase {
       { type: 'checkbox', id: 'withPresenter', label: 'Follow Presenter (slide on screen, blank)', width: 6, default: true },
       { type: 'checkbox', id: 'withPrompter', label: 'Follow Teleprompter (playing, speed)', width: 6, default: true },
       { type: 'checkbox', id: 'withTake', label: 'Follow Take Board (slate, rolling, last mark)', width: 6, default: true },
+      { type: 'checkbox', id: 'withLights', label: 'Follow Light Commander (scenes, effects, blackout, tempo)', width: 6, default: true },
       { type: 'checkbox', id: 'withIntercom', label: 'Follow Intercom (talking, listening, who is on a channel)', width: 6, default: true },
       { type: 'textinput', id: 'homeNums', label: 'Home jerseys for presets (comma list)', width: 12, default: '1,2,4,5,6,14,15,17,25,30,32,33,55' },
       { type: 'textinput', id: 'awayNums', label: 'Away jerseys for presets (comma list)', width: 12, default: '1,2,3,5,8,10,11,13,15,18,24,27,55' },
@@ -154,6 +166,14 @@ class ProLogicInstance extends InstanceBase {
     return this.call({ do: 'intercom', a: 'talk', ch: String(ch), v: on ? 'on' : 'off' })
   }
 
+  /* A flash key is held like a talk key: "on" repeats while the key is down, the console lets go 2.5 s after the last. */
+  lcFlash(n, on) {
+    this.lcHeld = this.lcHeld || new Map()
+    const h = this.lcHeld.get(n); if (h) { clearInterval(h); this.lcHeld.delete(n) }
+    if (on) this.lcHeld.set(n, setInterval(() => this.call({ do: 'lights', a: 'flash', n: String(n), v: 'on' }, false), 800))
+    return this.call({ do: 'lights', a: 'flash', n: String(n), v: on ? 'on' : 'off' })
+  }
+
   startPolling() {
     clearInterval(this.timer)
     if (!this.config.token || !this.config.key) { this.updateStatus(InstanceStatus.BadConfig, 'Token and key required'); return }
@@ -173,7 +193,7 @@ class ProLogicInstance extends InstanceBase {
     let done
     this.polling = new Promise(r => { done = r })
     try {
-      const follow = [this.config.withPresenter !== false ? 'presenter' : '', this.config.withPrompter !== false ? 'prompter' : '', this.config.withTake !== false ? 'take' : '', this.config.withIntercom !== false ? 'intercom' : ''].filter(Boolean).join(',')
+      const follow = [this.config.withPresenter !== false ? 'presenter' : '', this.config.withPrompter !== false ? 'prompter' : '', this.config.withTake !== false ? 'take' : '', this.config.withIntercom !== false ? 'intercom' : '', this.config.withLights !== false ? 'lights' : ''].filter(Boolean).join(',')
       const res = await fetch(this.url(follow ? { do: 'state', with: follow } : { do: 'state' }))
       if (res.status === 403) { this.updateStatus(InstanceStatus.AuthenticationFailure, 'Bad control key'); return }
       if (!res.ok) { this.updateStatus(InstanceStatus.UnknownError, `HTTP ${res.status}`); return }
@@ -192,6 +212,7 @@ class ProLogicInstance extends InstanceBase {
         prompter_wpm: s.prompter && s.prompter.wpm ? String(s.prompter.wpm) : '', prompter_state: s.prompter ? (s.prompter.playing ? 'PLAY' : 'PAUSE') : '',
         ...takeVars(s.take),
         ...icVars(s.intercom),
+        ...lcVars(s.lights),
       })
       this.checkFeedbacks()
     } catch (e) {
@@ -300,6 +321,53 @@ class ProLogicInstance extends InstanceBase {
         options: [{ type: 'textinput', id: 'text', label: 'Message', default: 'Quiet please', useVariables: true }],
         callback: async (e, ctx) => { await this.call({ do: 'take', a: 'msg', v: await ctx.parseVariablesInString(e.options.text || '') }) },
       },
+      lights_scene: {
+        name: 'Light Commander: run a scene',
+        options: [{ type: 'number', id: 'n', label: 'Scene (1 = the first)', default: 1, min: 1, max: 32 }],
+        callback: async e => { await this.call({ do: 'lights', a: 'scene', n: String(Number(e.options.n) || 1) }) },
+      },
+      lights_stack: {
+        name: 'Light Commander: stack GO / BACK',
+        options: [{ type: 'dropdown', id: 'd', label: 'Step', default: 'stack', choices: [{ id: 'stack', label: 'GO: next scene' }, { id: 'stackback', label: 'BACK: previous scene' }] }],
+        callback: async e => { await this.call({ do: 'lights', a: e.options.d === 'stackback' ? 'stackback' : 'stack' }) },
+      },
+      lights_go: {
+        name: 'Light Commander: GO / BACK (the sequence on the console page, or the stack)',
+        options: [{ type: 'dropdown', id: 'd', label: 'Step', default: 'go', choices: [{ id: 'go', label: 'GO' }, { id: 'back', label: 'BACK' }] }],
+        callback: async e => { await this.call({ do: 'lights', a: e.options.d === 'back' ? 'back' : 'go' }) },
+      },
+      lights_fx: {
+        name: 'Light Commander: effect on / off',
+        options: [
+          { type: 'dropdown', id: 'n', label: 'Effect', default: 1, choices: LC_FX.map((f, i) => ({ id: i + 1, label: f[1] })) },
+          { type: 'dropdown', id: 'mode', label: 'Do', default: 'toggle', choices: [{ id: 'toggle', label: 'Toggle' }, { id: 'on', label: 'On' }, { id: 'off', label: 'Off' }] },
+        ],
+        callback: async e => { await this.call({ do: 'lights', a: 'fx', n: String(e.options.n), ...(e.options.mode === 'toggle' ? {} : { v: e.options.mode }) }) },
+      },
+      lights_fxstop: { name: 'Light Commander: STOP every effect', options: [], callback: async () => { await this.call({ do: 'lights', a: 'fxstop' }) } },
+      lights_blackout: {
+        name: 'Light Commander: blackout',
+        options: [{ type: 'dropdown', id: 'mode', label: 'Do', default: 'toggle', choices: [{ id: 'toggle', label: 'Toggle' }, { id: 'on', label: 'On' }, { id: 'off', label: 'Off' }] }],
+        callback: async e => {
+          const on = e.options.mode === 'toggle' ? !(this.state && this.state.lights && this.state.lights.blackout) : e.options.mode === 'on'
+          await this.call({ do: 'lights', a: 'blackout', v: on ? 'on' : 'off' })
+        },
+      },
+      lights_alloff: { name: 'Light Commander: all sequences off', options: [], callback: async () => { await this.call({ do: 'lights', a: 'alloff' }) } },
+      lights_tap: { name: 'Light Commander: tap the tempo', options: [], callback: async () => { await this.call({ do: 'lights', a: 'tap' }, false) } },
+      lights_macro: {
+        name: 'Light Commander: run a console macro',
+        options: [{ type: 'number', id: 'n', label: 'Macro number', default: 1, min: 1, max: 9999 }],
+        callback: async e => { await this.call({ do: 'lights', a: 'macro', n: String(Number(e.options.n) || 1) }) },
+      },
+      lights_flash: {
+        name: 'Light Commander: flash an executor (put "Key down" on the press and "Key up" on the release)',
+        options: [
+          { type: 'number', id: 'n', label: 'Executor', default: 201, min: 1, max: 9999 },
+          { type: 'dropdown', id: 'mode', label: 'Step', default: 'press', choices: [{ id: 'press', label: 'Key down: flash on' }, { id: 'release', label: 'Key up: flash off' }] },
+        ],
+        callback: async e => { await this.lcFlash(Number(e.options.n) || 201, e.options.mode !== 'release') },
+      },
       ic_talk: {
         name: 'Intercom: talk (put "Key down" on the press and "Key up" on the release)',
         options: [
@@ -395,6 +463,24 @@ class ProLogicInstance extends InstanceBase {
         options: [{ type: 'textinput', id: 'text', label: 'Message', default: 'Quiet please' }],
         callback: f => !!(this.state && this.state.take && this.state.take.message && this.state.take.message === f.options.text),
       },
+      lights_scene_on: {
+        type: 'boolean', name: 'Light Commander: this scene is on', defaultStyle: { bgcolor: AMBER, color: BLACK },
+        options: [{ type: 'number', id: 'n', label: 'Scene', default: 1, min: 1, max: 32 }],
+        callback: f => !!(this.state && this.state.lights && this.state.lights.scene === Number(f.options.n)),
+      },
+      lights_fx_on: {
+        type: 'boolean', name: 'Light Commander: this effect is running', defaultStyle: { bgcolor: AMBER, color: BLACK },
+        options: [{ type: 'dropdown', id: 'n', label: 'Effect', default: 1, choices: LC_FX.map((f, i) => ({ id: i + 1, label: f[1] })) }],
+        callback: f => { const l = this.state && this.state.lights; const fx = LC_FX[Number(f.options.n) - 1]; return !!(l && fx && (l.fx || []).includes(fx[0])) },
+      },
+      lights_any_fx: {
+        type: 'boolean', name: 'Light Commander: an effect is running', defaultStyle: { bgcolor: RED, color: WHITE }, options: [],
+        callback: () => !!(this.state && this.state.lights && (this.state.lights.fx || []).length),
+      },
+      lights_blackout_on: {
+        type: 'boolean', name: 'Light Commander: blackout is on', defaultStyle: { bgcolor: RED, color: WHITE }, options: [],
+        callback: () => !!(this.state && this.state.lights && this.state.lights.blackout),
+      },
       ic_talking: {
         type: 'boolean', name: 'Intercom: the director is talking', defaultStyle: { bgcolor: RED, color: WHITE },
         options: [{ type: 'number', id: 'ch', label: 'On channel (0 = any)', default: 0, min: 0, max: IC_CHANNELS }],
@@ -445,6 +531,9 @@ class ProLogicInstance extends InstanceBase {
       { variableId: 'tb_state', name: 'Take Board: ROLLING / CUT' }, { variableId: 'tb_roll', name: 'Take Board: time rolling (m:ss)' },
       { variableId: 'tb_status', name: 'Take Board: last mark (GOOD / NG / HOLD)' }, { variableId: 'tb_good', name: 'Take Board: good takes this shot' },
       { variableId: 'tb_ng', name: 'Take Board: NG takes this shot' }, { variableId: 'tb_message', name: 'Take Board: message to the floor' },
+      { variableId: 'lights_scene', name: 'Light Commander: the scene on' }, { variableId: 'lights_stack', name: 'Light Commander: stack position (2/5 Talk)' },
+      { variableId: 'lights_bpm', name: 'Light Commander: tempo (BPM)' }, { variableId: 'lights_fx', name: 'Light Commander: effects running' },
+      ...Array.from({ length: 8 }, (_, i) => ({ variableId: `lights_scene${i + 1}`, name: `Light Commander: name of scene ${i + 1}` })),
       { variableId: 'ic_room', name: 'Intercom: room' }, { variableId: 'ic_state', name: 'Intercom: READY / TALKING / LATCHED / MUTED / OFFLINE' },
       { variableId: 'ic_talk', name: 'Intercom: the channel the director talks on' },
       ...Array.from({ length: IC_CHANNELS }, (_, i) => ({ variableId: `ic_ch${i + 1}`, name: `Intercom: name of channel ${i + 1}` })),
@@ -546,6 +635,16 @@ class ProLogicInstance extends InstanceBase {
     p.tb_msg_clear = { type: 'button', category: 'Take Board', name: 'Floor: clear the message', style: { text: 'CLEAR\nMSG', size: '14', color: WHITE, bgcolor: DARK },
       steps: [{ down: [{ actionId: 'take_board_msg', options: { text: '' } }], up: [] }], feedbacks: [] }
 
+    /* ── Light Commander ── */
+    for (let n = 1; n <= 8; n++) p[`lc_scene_${n}`] = plain('Light Commander', `Scene ${n}`, `$(${L}:lights_scene${n})`, 'lights_scene', { n }, [lit('lights_scene_on', { bgcolor: AMBER, color: BLACK }, { n })])
+    p.lc_stack_go = plain('Light Commander', 'Stack GO (next scene)', 'GO\n$(' + L + ':lights_stack)', 'lights_stack', { d: 'stack' }, [], { size: '14', bgcolor: GREEN })
+    p.lc_stack_back = plain('Light Commander', 'Stack BACK', 'BACK', 'lights_stack', { d: 'stackback' }, [], { size: '18' })
+    LC_FX.forEach((f, i) => { p[`lc_fx_${f[0]}`] = plain('Light Commander', `Effect: ${f[1]}`, f[1].toUpperCase(), 'lights_fx', { n: i + 1, mode: 'toggle' }, [lit('lights_fx_on', { bgcolor: AMBER, color: BLACK }, { n: i + 1 })]) })
+    p.lc_fxstop = plain('Light Commander', 'STOP every effect', 'STOP\nFX', 'lights_fxstop', {}, [lit('lights_any_fx', { bgcolor: RED, color: WHITE })], { size: '18' })
+    p.lc_blackout = plain('Light Commander', 'Blackout', 'BLACK\nOUT', 'lights_blackout', { mode: 'toggle' }, [lit('lights_blackout_on', { bgcolor: RED, color: WHITE })], { size: '18' })
+    p.lc_alloff = plain('Light Commander', 'All sequences off', 'ALL\nOFF', 'lights_alloff', {}, [], { size: '18' })
+    p.lc_tap = plain('Light Commander', 'Tap the tempo', 'TAP\n$(' + L + ':lights_bpm)', 'lights_tap', {}, [], { size: '18' })
+
     /* ── Intercom (the director's beltpack) ── */
     for (let n = 1; n <= 6; n++) {
       p[`ic_talk_${n}`] = { type: 'button', category: 'Intercom', name: `Talk on channel ${n} (hold)`,
@@ -596,6 +695,13 @@ class ProLogicInstance extends InstanceBase {
       dress('tb_slate', 'tb_slate', { keepText: true })
       for (const id of ['tb_clap', 'tb_roll', 'tb_good', 'tb_ng', 'tb_hold', 'tb_next', 'tb_prev', 'tb_shot', 'tb_scene', 'tb_msg_clear']) dress(id, id)
       for (const m of FLOOR_MSGS) { const id = `tb_msg_${m.replace(/\W+/g, '_').toLowerCase()}`; dress(id, id) }
+      // light commander: scenes carry their name from the console page; effects light in amber while they run
+      for (let n = 1; n <= 8; n++) dress(`lc_scene_${n}`, 'lc_scene', { keepText: true, style: { text: `$(${L}:lights_scene${n})`, size: '14', alignment: 'center:center' } })
+      dress('lc_stack_go', 'lc_stack_go', { keepText: true, style: { text: `$(${L}:lights_stack)`, size: '7', alignment: 'center:bottom' } })
+      dress('lc_stack_back', 'lc_stack_back')
+      for (const f of LC_FX) dress(`lc_fx_${f[0]}`, `lc_fx_${f[0]}`)
+      for (const id of ['lc_fxstop', 'lc_blackout', 'lc_alloff']) dress(id, id)
+      dress('lc_tap', 'lc_tap', { keepText: true, style: { text: `$(${L}:lights_bpm)`, size: '24', alignment: 'center:center' } })
       // intercom: the image carries the action, Companion writes the channel's name along the top
       for (let n = 1; n <= 6; n++) {
         dress(`ic_talk_${n}`, 'ic_talk', { keepText: true, lit: ['ic_talk__rx', 'ic_talk__on'], style: { text: `$(${L}:ic_ch${n})`, size: '14', alignment: 'center:top' } })

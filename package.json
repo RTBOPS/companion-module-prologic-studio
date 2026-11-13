@@ -1,6 +1,6 @@
 {
   "name": "prologic-studio",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Bitfocus Companion module for PRO-LOGIC Studio: Live Graphics, Stage Timer, Presenter, Teleprompter, Take Board and Intercom from a Stream Deck.",
   "main": "main.js",
   "type": "commonjs",

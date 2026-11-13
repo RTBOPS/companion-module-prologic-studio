@@ -16,6 +16,7 @@ Run the live tools of [PRO-LOGIC Studio](https://pro-logic.studio) from a Stream
 - **Presenter**: next, back, blank, on screen now, up next.
 - **Teleprompter**: play / pause, faster, slower, top, back, ahead, speed display.
 - **Take Board**: CLAP, ROLL / CUT, GOOD, NG, HOLD, take ±1, new shot, new scene, floor messages, slate display.
+- **Light Commander** (grandMA3): scenes 1–8 by name, stack GO / BACK, the effects (Strobe, Pulse, Chase, Wave, Lightning, Fire, Rainbow, Sweep, Bass hit) and STOP FX, Blackout, All off, Tap with the tempo on the key. Scenes and effects light in amber while they run. The Light Commander console sends the commands to the grandMA3 from the show computer, so it must be open there.
 - **Intercom** (the director's beltpack in the Intercom console): TALK and LISTEN on channels 1–6, LATCH, MUTE, CALL ALL, status. TALK is held while the key is down; if the deck stops sending, the beltpack closes the microphone by itself after 2.5 seconds.
 
 The connection settings choose what the deck follows (Presenter, Teleprompter, Take Board, Intercom) and how often it reads the state.

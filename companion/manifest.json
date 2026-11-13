@@ -3,7 +3,7 @@
   "id": "prologic-studio",
   "name": "prologic-studio",
   "shortname": "Pro-Logic",
-  "description": "Control PRO-LOGIC Studio from a Stream Deck: Live Graphics (score bug, full screens, player graphics, TAKE / CLEAR), Stage Timer, Presenter, Teleprompter, Take Board and Intercom, with lit keys and variables.",
+  "description": "Control PRO-LOGIC Studio from a Stream Deck: Live Graphics (score bug, full screens, player graphics, TAKE / CLEAR), Stage Timer, Presenter, Teleprompter, Take Board, Intercom and Light Commander (grandMA3), with lit keys and variables.",
   "version": "0.0.0",
   "license": "MIT",
   "repository": "git+https://github.com/RTBOPS/companion-module-prologic-studio.git",
@@ -29,7 +29,8 @@
     "Presenter",
     "Teleprompter",
     "Take Board",
-    "Intercom"
+    "Intercom",
+    "Light Commander"
   ],
   "keywords": [
     "graphics",
@@ -42,6 +43,9 @@
     "teleprompter",
     "intercom",
     "stream deck",
-    "slate"
+    "slate",
+    "lighting",
+    "grandma3",
+    "effects"
   ]
 }
