@@ -7,9 +7,9 @@ See [companion/HELP.md](companion/HELP.md) for setup and the list of keys.
 ## Development
 
 ```bash
-npm install
-npm run check   # companion-module-check
-npm run build   # companion-module-build → prologic-studio-<version>.tgz
+yarn install
+yarn check       # companion-module-check
+yarn build       # companion-module-build → prologic-studio-<version>.tgz
 ```
 
 `skin.js` holds the key images (PNG, base64). They are generated from the PRO-LOGIC app repository (`integrations/companion-module-prologic/skin/build.mjs`) and copied here.
