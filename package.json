@@ -1,0 +1,25 @@
+{
+  "name": "prologic-studio",
+  "version": "1.4.0",
+  "description": "Bitfocus Companion module for PRO-LOGIC Studio: Live Graphics, Stage Timer, Presenter, Teleprompter, Take Board and Intercom from a Stream Deck.",
+  "main": "main.js",
+  "type": "commonjs",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@companion-module/base": "~1.15.1"
+  },
+  "devDependencies": {
+    "@companion-module/tools": "~2.9.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RTBOPS/companion-module-prologic-studio.git"
+  },
+  "scripts": {
+    "build": "companion-module-build",
+    "check": "companion-module-check"
+  }
+}
