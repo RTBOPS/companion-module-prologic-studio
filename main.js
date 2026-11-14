@@ -24,8 +24,9 @@ const GRAPHICS = [
   { id: 'net', label: 'Network Logo' }, { id: 'talent', label: 'Talent' }, { id: 'mention', label: 'Mention' },
   { id: 'foul', label: 'Foul' }, { id: 'portal', label: 'Hoop Portal' }, { id: 'shotTrail', label: 'Shot Trail' },
   { id: 'shotMtn', label: 'Shot Terrain' }, { id: 'slam', label: 'SLAM' }, { id: 'projection', label: 'Projection' },
+  { id: 'refs', label: 'Referees' },   // lower third, typed in PRO-LOGIC's Game Day card
 ]
-const FLAG_KEY = { bug: 'bug', pbp: 'pbp', ticker: 'pbpTicker', net: 'net', talent: 'talent', mention: 'mention', foul: 'foul',
+const FLAG_KEY = { bug: 'bug', pbp: 'pbp', ticker: 'pbpTicker', net: 'net', talent: 'talent', mention: 'mention', foul: 'foul', refs: 'refs',
   portal: 'portal', shotTrail: 'shotTrail', shotMtn: 'shotMtn', slam: 'slam', projection: 'projection' }
 const FULLS = [
   { id: 'lineups', label: 'Lineups' }, { id: 'teamstats', label: 'Team Stats' }, { id: 'leaders', label: 'Leaders' },
@@ -35,6 +36,9 @@ const FULLS = [
   { id: 'breaker', label: 'Commercial Break' }, { id: 'final', label: 'Final Score' },
   { id: 'momentum', label: 'Momentum' }, { id: 'battle', label: 'Team Battle' }, { id: 'zones', label: 'Shot Zones' },
   { id: 'impact', label: 'Player Impact' }, { id: 'units', label: 'Best Lineups' },
+  // game day (typed in PRO-LOGIC's Game Day card, or gathered online)
+  { id: 'standings', label: 'League Standings' }, { id: 'injuries', label: 'Injuries' },
+  { id: 'keys', label: 'Keys to the Game' }, { id: 'around', label: 'Around the League' },
 ]
 const PLAYS = [
   { id: '3pt', label: '3PT' }, { id: '2pt', label: '+2' }, { id: 'ft', label: '+1 FT' },
